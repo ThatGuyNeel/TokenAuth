@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard {
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            padding: 40px;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-align: center;
+            color: #1a1a1a;
+        }
+
+        .section {
+            margin-bottom: 26px;
+        }
+
+        .section-label {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .row-between {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 9px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background-color: #0078d4;
+            color: #ffffff;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #005a9e;
+        }
+
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+
+        .secondary-btn {
+            background-color: #555555;
+        }
+
+        .secondary-btn:hover {
+            background-color: #3a3a3a;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            padding: 9px 14px;
+            border: 1px solid #c8c8c8;
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.2s;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        input:focus {
+            border-color: #0078d4;
+        }
+
+        .status-msg {
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 8px;
+            min-height: 20px;
+        }
+
+        .success {
+            color: #1a7f37;
+        }
+
+        .error {
+            color: #b42318;
+        }
+
+        .info-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .slots-list {
+            font-size: 14px;
+            color: #444;
+            margin-top: 6px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .slots-list div {
+            padding: 4px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .verify-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Token Dashboard</h1>
+
+        <!-- Nonce Section -->
+        <div class="section">
+            <div class="section-label">Nonce (Challenge):</div>
+            <div class="row-between">
+                <span id="nonce-display" class="info-text">No nonce generated</span>
+                <button id="generate-nonce-btn">Generate Nonce</button>
+            </div>
+        </div>
+
+        <!-- Slots Section -->
+        <div class="section">
+            <div class="section-label">Available Slots:</div>
+            <div class="row-between">
+                <button id="get-slots-btn" class="secondary-btn">Get Slots</button>
+            </div>
+            <div id="slots-container" class="slots-list hidden"></div>
+        </div>
+
+        <!-- Login Section -->
+        <div class="section">
+            <div class="section-label">Login to Slot:</div>
+            <div class="row">
+                <input type="number" id="slot-index-input" placeholder="Slot index" min="0" />
+                <input type="text" id="pin-input" placeholder="Enter PIN" />
+                <button id="login-btn">Login</button>
+            </div>
+        </div>
+
+        <!-- Sign Section -->
+        <div class="section">
+            <div class="section-label">Sign Nonce:</div>
+            <div class="row">
+                <button id="sign-nonce-btn">Sign with Private Key</button>
+            </div>
+            <div id="sign-status" class="status-msg"></div>
+        </div>
+
+        <!-- Verify Section -->
+        <div class="section">
+            <div class="section-label">Verify Signature:</div>
+            <div class="verify-section">
+                <button id="verify-btn" class="secondary-btn">Verify with Public Key</button>
+            </div>
+            <div id="verify-status" class="status-msg"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:5000";
+        const NODE_BASE = "http://localhost:3000";
+
+        const generateNonceBtn = document.getElementById("generate-nonce-btn");
+        const nonceDisplay = document.getElementById("nonce-display");
+        const getSlotsBtn = document.getElementById("get-slots-btn");
+        const slotsContainer = document.getElementById("slots-container");
+        const slotIndexInput = document.getElementById("slot-index-input");
+        const pinInput = document.getElementById("pin-input");
+        const loginBtn = document.getElementById("login-btn");
+        const signNonceBtn = document.getElementById("sign-nonce-btn");
+        const signStatus = document.getElementById("sign-status");
+        const verifyBtn = document.getElementById("verify-btn");
+        const verifyStatus = document.getElementById("verify-status");
+
+        generateNonceBtn.addEventListener("click", async () => {
+            try {
+                const res = await fetch(`${API_BASE}/generate-nonce`);
+                const data = await res.json();
+                if (data.success) {
+                    nonceDisplay.textContent = data.nonce;
+                    await fetch(`${NODE_BASE}/set-nonce`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ nonce: data.nonce })
+                    });
+                }
+            } catch (err) {
+                nonceDisplay.textContent = "Error generating nonce";
+            }
+        });
+
+        getSlotsBtn.addEventListener("click", async () => {
+            try {
+                const res = await fetch(`${NODE_BASE}/slots`);
+                const data = await res.json();
+                if (data.success) {
+                    slotsContainer.innerHTML = "";
+                    slotsContainer.classList.remove("hidden");
+                    data.slots.forEach(slot => {
+                        const div = document.createElement("div");
+                        div.textContent = `Slot ${slot.index}: ${slot.label} (ID: ${slot.slotNumber})`;
+                        slotsContainer.appendChild(div);
+                    });
+                } else {
+                    slotsContainer.innerHTML = "<div>Failed to retrieve slots.</div>";
+                    slotsContainer.classList.remove("hidden");
+                }
+            } catch (err) {
+                slotsContainer.innerHTML = "<div>Error fetching slots.</div>";
+                slotsContainer.classList.remove("hidden");
+            }
+        });
+
+        loginBtn.addEventListener("click", async () => {
+            const slotIdx = parseInt(slotIndexInput.value);
+            const pin = pinInput.value;
+            if (isNaN(slotIdx) || !pin) {
+                return;
+            }
+            try {
+                const res = await fetch(`${NODE_BASE}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chosenSlot: slotIdx, pin })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert("Login failed: " + (data.error || "Unknown error"));
+                }
+            } catch (err) {
+                alert("Error during login: " + err.message);
+            }
+        });
+
+        signNonceBtn.addEventListener("click", async () => {
+            signStatus.textContent = "";
+            signStatus.className = "status-msg";
+            try {
+                const res = await fetch(`${NODE_BASE}/sign-nonce`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    signStatus.textContent = "Signed successfully";
+                    signStatus.className = "status-msg success";
+                } else {
+                    signStatus.textContent = "Signing failed: " + data.error;
+                    signStatus.className = "status-msg error";
+                }
+            } catch (err) {
+                signStatus.textContent = "Error signing nonce.";
+                signStatus.className = "status-msg error";
+            }
+        });
+
+        verifyBtn.addEventListener("click", async () => {
+            verifyStatus.textContent = "";
+            verifyStatus.className = "status-msg";
+            try {
+                const signRes = await fetch(`${NODE_BASE}/sign-nonce`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                });
+                const signData = await signRes.json();
+                if (!signData.success) {
+                    verifyStatus.textContent = "No signature to verify. Sign first.";
+                    verifyStatus.className = "status-msg error";
+                    return;
+                }
+                const res = await fetch(`${API_BASE}/verify-signature`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        signature: signData.signature,
+                        keyId: signData.keyId
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    verifyStatus.textContent = "Signature verified successfully";
+                    verifyStatus.className = "status-msg success";
+                } else {
+                    verifyStatus.textContent = "Verification failed: " + data.error;
+                    verifyStatus.className = "status-msg error";
+                }
+            } catch (err) {
+                verifyStatus.textContent = "Error verifying signature.";
+                verifyStatus.className = "status-msg error";
+            }
+        });
+    </script>
+</body>
+</html>
